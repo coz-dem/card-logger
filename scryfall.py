@@ -10,16 +10,16 @@ import pandas as pd
 class Spinner:
     busy = False
     delay = 0.1
-    
+
     @staticmethod
     def spinning_cursor():
         while 1:
             for cursor in '|/-\\': yield cursor
-            
+
     def __init__(self, delay=None):
         self.spinner_generator = self.spinning_cursor()
         if delay and float(delay): self.delay = delay
-        
+
     def spinner_task(self):
         while self.busy:
             sys.stdout.write(next(self.spinner_generator))
@@ -27,11 +27,11 @@ class Spinner:
             time.sleep(self.delay)
             sys.stdout.write('\b')
             sys.stdout.flush()
-            
+
     def __enter__(self):
         self.busy = True
         threading.Thread(target=self.spinner_task).start()
-        
+
     def __exit__(self, exception, value, tb):
         self.busy = False
         time.sleep(self.delay)
@@ -52,12 +52,12 @@ def get_card_name():
 
     with open("data\mtg_prices.txt", "w", encoding='utf-8') as f:
         json.dump(response_json, f, ensure_ascii=False, indent=4)
-           
+
     print(response_json['prices'])
 
 
 def get_all_card_prices():
-    
+
     _date_column_exists = False
     # Wait while the user types a correct input.
     """
@@ -67,7 +67,7 @@ def get_all_card_prices():
             print("Please input an appropriate value.")
         else:
             break
-            
+
     if _data_type == 'oracle':
         _data_type_id = '27bf3214-1271-490b-bdfe-c0be6c23d02e'
     elif _data_type == 'unique':
@@ -80,38 +80,37 @@ def get_all_card_prices():
         _data_type_id = '06f54c0b-ab9c-452d-b35a-8297db5eb940'
     else:
         _data_type_id = null
-    """   
-    _data_type_id = 'e2ef41e3-5778-4bc2-af3f-78eca4dd9c23'    
+    """
+    _data_type_id = 'e2ef41e3-5778-4bc2-af3f-78eca4dd9c23'
     scryfall_all_card_url_base = 'https://api.scryfall.com/bulk-data/'
     scryfall_all_card_url_full = scryfall_all_card_url_base + _data_type_id
-    
+
     response = requests.get(scryfall_all_card_url_full)
     response_json = response.json()
-    
+
     _download_url = response_json['download_uri']
-    
+
     print('\n' + _download_url + '\n')
-    
+
     with Spinner():
-            
         final_csv = pathlib.Path('data\card_names.csv')
         original_csv = pathlib.Path('data\original_names.csv')
-        
+
         sys.stdout.write('\b')
-        
+
         # Check whether the CSV exists. If it does, no point recreating
         if final_csv.exists() == False:
             print('No file in directory, creating one.')
             with open(final_csv, mode='w') as card_file:
                 card_writer = csv.writer(card_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                
+
                 card_writer.writerow(['Name', 'Set', '\t' + str(datetime.date.today())])
-            
+
             print('Created CSV\n')
         else:
-        
+
             df = pd.read_csv(final_csv)
-            
+
             for columns in df.columns:
                 # The tab is needed or else excel changes the date format
                 temp_string = '\t' + str(datetime.date.today())
@@ -121,35 +120,35 @@ def get_all_card_prices():
                     print('Column exists\n')
                     _date_column_exists = True
                     break
-                       
+
             if (not _date_column_exists):
                 df['\t' + str(datetime.date.today())] = ""
                 df.to_csv(final_csv, index=False)
-                
+
             print('CSV already exists\n')
-            
+
         # Check when the file was created.
         #mtime = datetime.datetime.fromtimestamp(final_csv.stat().st_mtime)
         #if (mtime.date() == datetime.date.today()):
         #    print('mtime is the same as today')
-      
+
         # Download the latest list of cards from Scryfall.
         with urllib.request.urlopen(_download_url) as downloaded:
             _list_data = json.loads(downloaded.read().decode())
-          
+
         sys.stdout.write('\b')
         print('Downloaded Data\n')
-        
+
     _name = 'name'
     _set = 'set_name'
     _price = 'prices'
     _currency = 'eur'
     _exists = False
-    
+
     # Read the original CSV (card/set) to retrieve prices for.
     original_df = pd.read_csv(original_csv)
     original_name_list = original_df.values.tolist()
-    
+
     # Read the final csv to see what is already in there.
     final_df = pd.read_csv(final_csv)
     card_name_list = final_df.values.tolist()
@@ -161,9 +160,9 @@ def get_all_card_prices():
             for scryfall_card in _list_data:
                 for key_val in scryfall_card:
                     if _name in scryfall_card:
-                        
+
                         for original_list_card in original_name_list:
-                            
+
                             # Match the original names to the downloaded data from scryfall.
                             if (original_list_card[0].lower() == scryfall_card[_name].lower()) and (original_list_card[1].lower() == scryfall_card[_set].lower()):
                                 #sys.stdout.write('\b')
@@ -172,43 +171,101 @@ def get_all_card_prices():
                                     temp_price = '-'
                                 else:
                                     temp_price = scryfall_card[_price][_currency]
-                                
+
                                 #if not card_name_list:
                                 #    print('list is empty')
                                 #    card_name_list.append([scryfall_card[_name], scryfall_card[_set], temp_price])
                                 #    break
-                                    
+
                                 for card in card_name_list:
                                     if card[0].lower() == scryfall_card[_name].lower():
-                                        # The card already exists in the final csv. 
+                                        # The card already exists in the final csv.
                                         # Just add the new price to the last column.
                                         card[-1] = temp_price
                                         _exists = True
                                         print('card exists')
                                         break
-                                        
+
                                 if (not _exists):
                                     # The card doesn't exist so create new row.
                                     # The price of the card needs to be added to the last column again.
                                     #for index in range(0, len(column_name_list), 3):
-                                       
+
                                     card_name_list.append([scryfall_card[_name], scryfall_card[_set]])
                                     card[len(column_name_list)-1] = temp_price
-                                    
+
                                     print('add new card')
-                                    
-                                    break 
+
+                                    break
                             #else:
                                 #print('original_card and scryfall_card dont match')
-                        
+
                         _exists = False
                         break
             #print(final_list)
-            
+
             final_list = [column_name_list] + card_name_list
             final_df = pd.DataFrame(final_list)
             final_df.to_csv(final_csv, index=False, header=None)
         print('Done')
-    
-get_all_card_prices()
 
+#get_all_card_prices()
+
+
+if __name__ == "__main__":
+
+    _card_names = os.path.join('data', 'card_names.csv')
+    _original_names = os.path.join('data', 'original_names.csv')
+
+    if os.path.isfile(_card_names):
+       _card_names_df = pd.read_csv(_card_names)
+       _card_names_df = _card_names_df.set_index("index")
+       print("_card_names_df.columns: {}".format(_card_names_df.columns))
+       print("Found {} row in card names.".format(len(_card_names_df)))
+
+    else:
+       _card_names_df = pd.DataFrame(columns=['index', 'Name', 'Set', str(datetime.date.today())])
+       _card_names_df = _card_names_df.set_index("index")
+       _card_names_df.to_csv(_card_names)
+
+       # Load from a different source
+       pass
+
+    if os.path.isfile(_original_names):
+       _original_names_df = pd.read_csv(_original_names)
+       print("Found {} row in original names.".format(len(_original_names_df)))
+
+    else:
+       # Load from a different source
+       pass
+
+    # We have our card_names df so lets check if we need to add a new row.
+    if _card_names_df.columns[-1] != str(datetime.date.today()):
+       print("Column {} not at end of df. Add it!".format(str(datetime.date.today())))
+       _card_names_df[str(datetime.date.today())] = np.nan
+       _card_names_df.to_csv(_card_names)
+
+    # Update the cell
+    _card_names_df.loc[3, "Name"] = "Dave"
+    _card_names_df.loc[2, "Name"] = "Lee"
+    _card_names_df.loc[4, "Name"] = "Coz"
+    _card_names_df.loc[5, "Name"] = "Kostas"
+    _card_names_df.loc[1, "Name"] = "Satya"
+
+    #_card_names_df.loc[3, "Name"] = "Satya"
+    _card_names_df.to_csv(_card_names)
+
+    #This line add a column with blank cells
+    _card_names_df[str(datetime.date.today())] = np.nan
+
+    #Use this line to assign an index to a df
+    card_names_df = _card_names_df.set_index("index")
+
+    #This function is how you change just a cell
+    _card_names_df.loc[1, "Name"] = "Satya"
+
+    #inside loc are 2 args, the index of the row, and the column to be updated
+    #To perform a query you first build a mask
+    _mask = (_card_names_df.index > 1) & (_card_names_df.index < 3)
+    #Then apply the mask to the df
+    _card_names_df_filtered = _card_names_df.loc[_mask]+
